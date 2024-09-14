@@ -1,9 +1,4 @@
-A very simple app that allows to listen to your speech and output subtitles.
 
-Needs an AWS account with appropriate permissions and the following keys:
-AWS_ACCESS_KEY_ID=<your-access-key-id>
-AWS_SECRET_ACCESS_KEY=<your-secret-access-key>
-AWS_REGION=<your-region>
 # Speech-to-Subtitles App
 
 ## Overview
