@@ -5,6 +5,7 @@ let audioContext;
 let processor;
 let input;
 let fullTranscript = '';
+let mediaStream;
 
 const startButton = document.getElementById('start-button');
 const stopButton = document.getElementById('stop-button');
@@ -58,6 +59,17 @@ function stopTranscription() {
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.close();
   }
+
+  // Stop all tracks in the media stream
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(track => track.stop());
+  }
+
+  // Reset variables
+  audioContext = null;
+  processor = null;
+  input = null;
+  mediaStream = null;
 }
 
 async function initializeAudioStream() {
@@ -65,8 +77,8 @@ async function initializeAudioStream() {
     sampleRate: 44100,
   });
 
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  input = audioContext.createMediaStreamSource(stream);
+  mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  input = audioContext.createMediaStreamSource(mediaStream);
 
   processor = audioContext.createScriptProcessor(4096, 1, 1);
   processor.onaudioprocess = (e) => {
