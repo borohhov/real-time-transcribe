@@ -86,9 +86,14 @@ function startTranscription(ws) {
           if (results.length > 0) {
             const result = results[0];
             const transcript = result.Alternatives[0].Transcript;
-            if (!result.IsPartial) {
-              ws.send(JSON.stringify({ transcript }));
-            }
+
+            // Send both partial and final transcripts
+            ws.send(
+              JSON.stringify({
+                transcript,
+                isPartial: result.IsPartial,
+              })
+            );
           }
         }
       }

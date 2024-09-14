@@ -8,7 +8,8 @@ let fullTranscript = '';
 
 const startButton = document.getElementById('start-button');
 const stopButton = document.getElementById('stop-button');
-const transcriptionDiv = document.getElementById('transcription');
+const transcriptionContainer = document.getElementById('transcription-container');
+
 
 startButton.addEventListener('click', startTranscription);
 stopButton.addEventListener('click', stopTranscription);
@@ -16,7 +17,7 @@ stopButton.addEventListener('click', stopTranscription);
 async function startTranscription() {
   startButton.disabled = true;
   stopButton.disabled = false;
-  transcriptionDiv.innerHTML = '';
+  transcriptionContainer.innerHTML = '';
 
   fullTranscript = '';
 
@@ -31,14 +32,7 @@ async function startTranscription() {
   socket.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.transcript) {
-      if (data.isPartial) {
-        // Display partial transcript
-        updatePartialTranscript(data.transcript);
-      } else {
-        // Add finalized transcript to full transcript
-        fullTranscript += data.transcript + '\n';
-        transcriptionDiv.innerText = fullTranscript;
-      }
+      updateTranscription(data.transcript, data.isPartial);
     }
   };
 
@@ -126,10 +120,96 @@ function encodePCM(samples) {
   }
   return buffer;
 }
+// Helper function to apply fade-in effect
+function fadeIn(element) {
+  element.classList.add('fade-in');
+  // Force reflow
+  void element.offsetHeight;
+  // Remove 'fade-in' class to trigger the transition to opacity: 1
+  element.classList.remove('fade-in');
+}
 
-// Function to update the partial transcript
-function updatePartialTranscript(partialTranscript) {
-  // Combine the full transcript with the partial one
-  transcriptionDiv.innerText = fullTranscript + partialTranscript;
-  transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+let partialLine = null;
+let previousWords = [];
+
+function updateTranscription(transcript, isPartial) {
+  if (isPartial) {
+    const words = transcript.split(' ');
+    if (!partialLine) {
+      // Create a new line for partial transcript
+      partialLine = document.createElement('div');
+      partialLine.className = 'transcription-line partial';
+      transcriptionContainer.appendChild(partialLine);
+    }
+
+    // Clear the partial line
+    partialLine.innerHTML = '\n';
+
+    words.forEach((word, index) => {
+      const wordSpan = document.createElement('span');
+      wordSpan.className = 'word';
+      wordSpan.textContent = word + (index < words.length - 1 ? ' ' : '');
+
+      // Check if the word is new
+      if (previousWords[index] !== word) {
+        wordSpan.classList.add('fade-in');
+        // Force reflow and remove 'fade-in' class to trigger the transition
+        void wordSpan.offsetHeight;
+        wordSpan.classList.remove('fade-in');
+      }
+
+      partialLine.appendChild(wordSpan);
+    });
+
+    // Scroll the partial line into view
+    partialLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+    // Update previousWords
+    previousWords = words.slice();
+  } else {
+    // Finalized transcript
+    if (partialLine) {
+      // Change the class to finalized (remove 'partial' class)
+      partialLine.classList.remove('partial');
+
+      // Remove fade-in classes from words
+      const wordElements = partialLine.getElementsByClassName('word');
+      for (let wordElement of wordElements) {
+        wordElement.classList.remove('fade-in');
+      }
+
+      // Scroll the finalized line into view
+      partialLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+      partialLine = null;
+    } else {
+      // Append new finalized line
+      const line = document.createElement('div');
+      line.className = 'transcription-line';
+      line.textContent = transcript;
+      transcriptionContainer.appendChild(line);
+
+      // Scroll the new line into view
+      line.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    // Reset previousWords
+    previousWords = [];
+  }
+}
+
+const fullscreenButton = document.getElementById('fullscreen-button');
+
+fullscreenButton.addEventListener('click', toggleFullScreen);
+
+function toggleFullScreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+    fullscreenButton.innerText = 'Exit Full Screen';
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+      fullscreenButton.innerText = 'Enter Full Screen';
+    }
+  }
 }

@@ -1,20 +1,79 @@
 /* public/styles.css */
 body {
-    font-family: Arial, sans-serif;
-    padding: 20px;
-  }
-  
+  font-family: Arial, sans-serif;
+  padding: 0;
+  margin: 0;
+  background-color: #000; /* Black background */
+  color: #fff; /* White text */
+  overflow: hidden; /* Prevent body from scrolling */
+}
+
+@media (max-width: 800px) {
   #transcription {
-    margin-top: 20px;
-    padding: 10px;
-    border: 1px solid #ccc;
-    height: 300px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    background-color: #f9f9f9;
+    font-size: 2em;
   }
-  
-  button {
-    margin-right: 10px;
+}
+
+@media (min-width: 801px) {
+  #transcription {
+    font-size: 3em;
   }
-  
+}
+
+/* Transcription Container */
+#transcription-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  max-height: 100vh; /* Allow scrolling when content exceeds screen height */
+  overflow-y: auto;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* Transcription Lines */
+.transcription-line {
+  font-size: 1.5em; /* Adjust font size as needed */
+  line-height: 1.4;
+  padding-bottom: 0.3em;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #777;
+  opacity: 1;
+  transition: opacity 0.3s ease-in-out; /* Add transition for opacity */
+}
+
+/* Partial Transcription Line */
+.partial {
+
+  color: #fff; /* White color for partial text */
+}
+
+/* Fade-in effect */
+.fade-in {
+  opacity: 0; /* Start with opacity 0 */
+}
+
+/* Control Buttons */
+#controls {
+  position: absolute;
+  z-index: 999;
+  top: 10px;
+  left: 10px;
+}
+
+button {
+  padding: 10px 20px;
+  font-size: 1em;
+}
+
+/* Individual words */
+.word {
+  opacity: 1;
+  transition: opacity 0.8s ease-in-out;
+}
+
+.fade-in {
+  opacity: 0;
+}
