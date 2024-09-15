@@ -9,16 +9,17 @@ body {
 }
 
 @media (max-width: 800px) {
-  #transcription {
+  #transcription-container {
     font-size: 2em;
   }
 }
 
 @media (min-width: 801px) {
-  #transcription {
+  #transcription-container {
     font-size: 3em;
   }
 }
+
 
 /* Transcription Container */
 #transcription-container {

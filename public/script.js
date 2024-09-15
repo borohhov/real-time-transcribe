@@ -6,47 +6,131 @@ let processor;
 let input;
 let fullTranscript = '';
 let mediaStream;
+let streamID = null; // To store the streamID assigned by the server
+let isTranscribing = false; // To track transcription state
 
 const startButton = document.getElementById('start-button');
 const stopButton = document.getElementById('stop-button');
 const transcriptionContainer = document.getElementById('transcription-container');
+const streamIDElement = document.getElementById('stream-id'); // Element to display streamID
+const streamLinkInput = document.getElementById('stream-link');
+const copyLinkButton = document.getElementById('copy-link-button');
 
+// QR code container (if you're using QR codes)
+const qrCodeContainer = document.getElementById('qr-code');
 
 startButton.addEventListener('click', startTranscription);
 stopButton.addEventListener('click', stopTranscription);
 
+copyLinkButton.addEventListener('click', () => {
+  streamLinkInput.select();
+  document.execCommand('copy');
+  alert('Link copied to clipboard!');
+});
+
 async function startTranscription() {
+  if (isTranscribing) {
+    console.log('Already transcribing');
+    return;
+  }
+
   startButton.disabled = true;
   stopButton.disabled = false;
   transcriptionContainer.innerHTML = '';
 
   fullTranscript = '';
 
-  // Initialize WebSocket
-  socket = new WebSocket('ws://localhost:3000');
+  // Initialize or reuse WebSocket
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    socket = new WebSocket('ws://localhost:3000');
 
-  socket.onopen = () => {
-    console.log('WebSocket connection opened');
+    socket.onopen = () => {
+      console.log('WebSocket connection opened');
+
+      // Send initial message to start a new audio stream
+      sendStartMessage();
+
+      // Initialize audio stream after sending the initial message
+      initializeAudioStream();
+    };
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === 'streamID') {
+        // Server has assigned a streamID to this audio source
+        if (!streamID) {
+          streamID = data.streamID;
+          console.log('Assigned streamID:', streamID);
+
+          // Display the streamID and the shareable link
+          if (streamIDElement && streamLinkInput) {
+            streamIDElement.textContent = streamID;
+            const streamURL = `${window.location.origin}/stream?streamID=${streamID}`;
+            streamLinkInput.value = streamURL;
+
+            // Generate QR code (if applicable)
+            if (qrCodeContainer) {
+              // Clear previous QR code if any
+              qrCodeContainer.innerHTML = '';
+
+              new QRCode(qrCodeContainer, {
+                text: streamURL,
+                width: 128,
+                height: 128,
+              });
+            }
+          }
+        }
+      } else if (data.type === 'transcript') {
+        // Received a transcription
+        const { transcript, isPartial } = data;
+        updateTranscription(transcript, isPartial);
+      } else if (data.type === 'end') {
+        // Handle end of stream
+        console.log('Stream has ended.');
+        stopTranscription();
+      } else if (data.error) {
+        // Handle error messages
+        console.error('Error from server:', data.error);
+      } else {
+        console.log('Unknown message type:', data);
+      }
+    };
+
+    socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    socket.onclose = () => {
+      console.log('WebSocket connection closed');
+      isTranscribing = false;
+      startButton.disabled = false;
+      stopButton.disabled = true;
+    };
+  } else {
+    // If WebSocket is already open, just send the start message
+    sendStartMessage();
     initializeAudioStream();
-  };
+  }
 
-  socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    if (data.transcript) {
-      updateTranscription(data.transcript, data.isPartial);
-    }
-  };
+  isTranscribing = true;
+}
 
-  socket.onerror = (error) => {
-    console.error('WebSocket error:', error);
-  };
-
-  socket.onclose = () => {
-    console.log('WebSocket connection closed');
-  };
+function sendStartMessage() {
+  const message = { type: 'start' };
+  if (streamID) {
+    message.streamID = streamID;
+  }
+  socket.send(JSON.stringify(message));
 }
 
 function stopTranscription() {
+  if (!isTranscribing) {
+    console.log('Not currently transcribing');
+    return;
+  }
+
   startButton.disabled = false;
   stopButton.disabled = true;
 
@@ -56,13 +140,15 @@ function stopTranscription() {
   if (audioContext) {
     audioContext.close();
   }
+
+  // Send stop message to the server
   if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.close();
+    socket.send(JSON.stringify({ type: 'stop', streamID }));
   }
 
   // Stop all tracks in the media stream
   if (mediaStream) {
-    mediaStream.getTracks().forEach(track => track.stop());
+    mediaStream.getTracks().forEach((track) => track.stop());
   }
 
   // Reset variables
@@ -70,6 +156,8 @@ function stopTranscription() {
   processor = null;
   input = null;
   mediaStream = null;
+
+  isTranscribing = false;
 }
 
 async function initializeAudioStream() {
@@ -83,12 +171,9 @@ async function initializeAudioStream() {
   processor = audioContext.createScriptProcessor(4096, 1, 1);
   processor.onaudioprocess = (e) => {
     const inputData = e.inputBuffer.getChannelData(0);
-    const inputData16 = downsampleBuffer(
-      inputData,
-      audioContext.sampleRate,
-      44100
-    );
+    const inputData16 = downsampleBuffer(inputData, audioContext.sampleRate, 44100);
     if (socket.readyState === WebSocket.OPEN) {
+      // Send the audio data as binary data
       socket.send(inputData16);
     }
   };
@@ -132,6 +217,7 @@ function encodePCM(samples) {
   }
   return buffer;
 }
+
 // Helper function to apply fade-in effect
 function fadeIn(element) {
   element.classList.add('fade-in');
@@ -155,7 +241,7 @@ function updateTranscription(transcript, isPartial) {
     }
 
     // Clear the partial line
-    partialLine.innerHTML = '\n';
+    partialLine.innerHTML = '';
 
     words.forEach((word, index) => {
       const wordSpan = document.createElement('span');

@@ -3,8 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "server.js",
-  "scripts": {
-  },
+  "scripts": {},
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -13,6 +12,8 @@
     "aws-sdk": "^2.1691.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
+    "node-abort-controller": "^3.1.1",
+    "uuid": "^10.0.0",
     "ws": "^8.18.0"
   }
 }
