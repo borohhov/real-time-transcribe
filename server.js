@@ -125,8 +125,8 @@ wss.on('connection', (ws) => {
               }
               console.log(`Transcription stopped for streamID: ${streamID}`);
               if (ws.readyState !== WebSocket.CLOSED && ws.readyState !== WebSocket.CLOSING) {
-                ws.close();
-                console.log(`Websocket closed for streamID: ${streamID}`);
+                //ws.close();
+                //console.log(`Websocket closed for streamID: ${streamID}`);
               }
             }
           }
@@ -183,7 +183,7 @@ function startTranscription(ws, streamID) {
   const audioStream = stream.audioStream;
 
   const onClose = () => {
-    console.log('WebSocket closed');
+    console.log('WebSocket closed, ending audio stream');
     audioStream.end();
   };
 
@@ -220,10 +220,10 @@ function startTranscription(ws, streamID) {
       MediaSampleRateHertz: 44100,
       AudioStream: getAudioStream(),
     });
-
+  
     try {
       const response = await transcribeClient.send(command, { abortSignal });
-
+  
       for await (const event of response.TranscriptResultStream) {
         if (!stream.isTranscribing) {
           console.log('Transcription paused, stopping processing of results');
@@ -237,23 +237,23 @@ function startTranscription(ws, streamID) {
               const result = results[0];
               if (result.Alternatives && result.Alternatives.length > 0) {
                 const transcript = result.Alternatives[0].Transcript;
-
-                // Send transcriptions to all subscribers and the audio source
+  
+                // Send transcriptions to all subscribers
                 const message = JSON.stringify({
                   type: 'transcript',
                   transcript,
                   isPartial: result.IsPartial,
                   streamID,
                 });
-
-                // Send to subscribers
+  
+                // Ensure the data is sent to all connected subscribers
                 for (const subscriber of stream.subscribers) {
                   if (subscriber.readyState === WebSocket.OPEN) {
                     subscriber.send(message);
                   }
                 }
-
-                // Send to the audio source
+  
+                // Send to the audio source as well if needed
                 if (stream.audioSource && stream.audioSource.readyState === WebSocket.OPEN) {
                   stream.audioSource.send(message);
                 }
@@ -270,19 +270,20 @@ function startTranscription(ws, streamID) {
         console.error('Transcribe client error:', err);
       }
     } finally {
-      // Clean up listeners and close the stream only after the session has properly ended
+      // Keep subscribers connected and ready to receive data on the next restart
       if (stream.listenerCleanup) {
         stream.listenerCleanup();
         stream.listenerCleanup = null;
       }
       if (stream.audioStream) {
-        stream.audioStream.end(); // Properly close the stream after the transcription session ends
+        stream.audioStream.end();
         stream.audioStream.on('finish', () => {
           stream.audioStream = null;
         });
       }
     }
   })();
+  
 }
 
 
