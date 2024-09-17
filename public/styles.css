@@ -10,13 +10,13 @@ body {
 
 @media (max-width: 800px) {
   #transcription-container {
-    font-size: 2em;
+    font-size: 1.5em;
   }
 }
 
 @media (min-width: 801px) {
   #transcription-container {
-    font-size: 3em;
+    font-size: 2em;
   }
 }
 
