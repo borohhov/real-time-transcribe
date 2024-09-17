@@ -78,3 +78,11 @@ button {
 .fade-in {
   opacity: 0;
 }
+
+.new-line {
+  color: white; /* Or whatever styling you prefer */
+}
+
+.transcription-line {
+  transition: color 0.5s ease;
+}

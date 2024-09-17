@@ -229,72 +229,58 @@ function fadeIn(element) {
 
 let partialLine = null;
 let previousWords = [];
-
+let previousLine = null;
 function updateTranscription(transcript, isPartial) {
   if (isPartial) {
-    const words = transcript.split(' ');
-    if (!partialLine) {
-      // Create a new line for partial transcript
-      partialLine = document.createElement('div');
-      partialLine.className = 'transcription-line partial';
-      transcriptionContainer.appendChild(partialLine);
-    }
-
-    // Clear the partial line
-    partialLine.innerHTML = '';
-
-    words.forEach((word, index) => {
-      const wordSpan = document.createElement('span');
-      wordSpan.className = 'word';
-      wordSpan.textContent = word + (index < words.length - 1 ? ' ' : '');
-
-      // Check if the word is new
-      if (previousWords[index] !== word) {
-        wordSpan.classList.add('fade-in');
-        // Force reflow and remove 'fade-in' class to trigger the transition
-        void wordSpan.offsetHeight;
-        wordSpan.classList.remove('fade-in');
-      }
-
-      partialLine.appendChild(wordSpan);
-    });
-
-    // Scroll the partial line into view
-    partialLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
-
-    // Update previousWords
-    previousWords = words.slice();
+    // Your existing code for handling partial transcripts
+    // ...
   } else {
     // Finalized transcript
     if (partialLine) {
-      // Change the class to finalized (remove 'partial' class)
+      // Finalize the partial line
       partialLine.classList.remove('partial');
-
+      
       // Remove fade-in classes from words
       const wordElements = partialLine.getElementsByClassName('word');
       for (let wordElement of wordElements) {
         wordElement.classList.remove('fade-in');
       }
-
-      // Scroll the finalized line into view
+      
+      // **Apply the new-line class**
+      if (previousLine) {
+        previousLine.classList.remove('new-line');
+      }
+      partialLine.classList.add('new-line');
+      previousLine = partialLine;
+      
       partialLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
-
       partialLine = null;
     } else {
-      // Append new finalized line
+      // **Handle sentences that appear at once**
+      
+      // Remove 'new-line' class from previous line
+      if (previousLine) {
+        previousLine.classList.remove('new-line');
+      }
+      
+      // Create a new line with the 'new-line' class
       const line = document.createElement('div');
-      line.className = 'transcription-line';
+      line.className = 'transcription-line new-line';
       line.textContent = transcript;
       transcriptionContainer.appendChild(line);
-
+      
       // Scroll the new line into view
       line.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      
+      // Update previousLine
+      previousLine = line;
     }
-
+    
     // Reset previousWords
     previousWords = [];
   }
 }
+
 
 const fullscreenButton = document.getElementById('fullscreen-button');
 

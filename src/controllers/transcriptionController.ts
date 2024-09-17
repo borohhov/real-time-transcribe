@@ -1,5 +1,5 @@
 
-import { TranscribeStreamingClient, StartStreamTranscriptionCommand } from '@aws-sdk/client-transcribe-streaming';
+import { TranscribeStreamingClient, StartStreamTranscriptionCommand, ItemType } from '@aws-sdk/client-transcribe-streaming';
 import { streams } from '../types/stream';
 import WebSocket from 'ws';
 import { CustomWebSocket } from '../types/customWebSocket';
@@ -66,6 +66,8 @@ export const startTranscription = (ws: CustomWebSocket, streamID: string) => {
       MediaEncoding: 'pcm',
       MediaSampleRateHertz: 44100,
       AudioStream: getAudioStream(),
+      EnablePartialResultsStabilization: true,
+      PartialResultsStability: 'high',
     });
     try {
       const response = await new TranscribeStreamingClient({
@@ -75,49 +77,66 @@ export const startTranscription = (ws: CustomWebSocket, streamID: string) => {
           secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
         },
       }).send(command, { abortSignal });
-      let partialTranslatedTranscript = '';
-      let partialTranscript = '';
+      let previousLastItemIndex = 0;
+      let lastTranslatedChunk = '';
       for await (const event of response.TranscriptResultStream!) {
         if (!stream.isTranscribing) break;
         if (event.TranscriptEvent?.Transcript?.Results?.length) {
           const result = event.TranscriptEvent.Transcript.Results[0];
           if (result.Alternatives?.length) {
             const transcript = result.Alternatives[0].Transcript;
-            let translatedTranscript = undefined;
-            if(!result.IsPartial && partialTranscript) {
-              translatedTranscript = await translationService.translate(partialTranscript!, sourceLanguageCode, targetLanguageCode, partialTranslatedTranscript);
-              partialTranscript = '';
-            }
+            // Buffer partial transcripts
+            if (result.IsPartial) {
+              const items = result.Alternatives[0].Items || [];
+              const lastItemIndex = items.length - 1;
+              const lastItem = items[lastItemIndex];
+              
+              if(lastItem?.Type === ItemType.PUNCTUATION || lastItemIndex > previousLastItemIndex + 4) { // doesnt't seem to work
+                console.log("transcript:", transcript)
+                const translatedTranscript = await translationService.translate(
+                  transcript!,
+                  sourceLanguageCode,
+                  targetLanguageCode,
+                  lastTranslatedChunk
+                );
+                lastTranslatedChunk = transcript!
+                previousLastItemIndex = lastItemIndex;
+                sendTranscriptToClients(translatedTranscript, true);
+              }      
+            } 
             else {
-              partialTranscript = transcript!;
-              //partialTranslatedTranscript = await translationService.translate(transcript!, sourceLanguageCode, targetLanguageCode, partialTranslatedTranscript);
-            }
-            // else {
-            //   translatedTranscript = await translationService.translate(transcript!, sourceLanguageCode, destinationLanguageCode, );
-            // }
-            console.log(result.IsPartial ? "Partial" : "Final", "Transcript: ", transcript, "\nTranslated transcript: ", translatedTranscript);
-            const messageJson: TranscriptionMessage = {
-              type: 'transcript',
-              sourceLanguageCode: sourceLanguageCode,
-              destinationLanguageCode: targetLanguageCode,
-              transcript: translatedTranscript ?? transcript!,
-              isPartial: result.IsPartial ?? false,
-              streamID,
-            }
-            const message = JSON.stringify(messageJson);
-
-            for (const subscriber of stream.subscribers) {
-              if (subscriber.readyState === WebSocket.OPEN && !result.IsPartial) {
-                subscriber.send(message);
-              }
-            }
-
-            if (stream.audioSource?.readyState === WebSocket.OPEN && !result.IsPartial) {
-              stream.audioSource.send(message);
+              const translatedTranscript = await translationService.translate(
+                transcript!,
+                sourceLanguageCode,
+                targetLanguageCode,
+                lastTranslatedChunk
+              );
+              sendTranscriptToClients(translatedTranscript, false);
             }
           }
         }
       }
+
+      // Function to send transcripts to clients
+      function sendTranscriptToClients(translatedTranscript: string, isPartial: boolean) {
+        const message = JSON.stringify({
+          type: 'transcript',
+          transcript: translatedTranscript,
+          isPartial,
+          streamID,
+        });
+
+        for (const subscriber of stream!.subscribers) {
+          if (subscriber.readyState === WebSocket.OPEN) {
+            subscriber.send(message);
+          }
+        }
+
+        if (stream!.audioSource?.readyState === WebSocket.OPEN) {
+          stream!.audioSource.send(message);
+        }
+      }
+
       console.log('Transcription session ended');
     } catch (err) {
       if ((err as Error).name === 'AbortError') {
@@ -135,3 +154,5 @@ export const startTranscription = (ws: CustomWebSocket, streamID: string) => {
     }
   })();
 };
+
+// Function to send transcripts to clients
