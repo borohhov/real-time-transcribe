@@ -8,18 +8,36 @@
 </head>
 <body>
 
-  <div id="controls">
-    <h3>Real-time Transcription</h3>
-    <button id="start-button">Start Transcription</button>
-    <button id="stop-button" disabled>Stop Transcription</button>
-    <button id="fullscreen-button">Toggle Full Screen</button>
-    <div id="stream-id-container">
-      <span>Your Stream ID: <span id="stream-id"></span></span>
-      <span>Share this link with subscribers:</span>
-      <input type="text" id="stream-link" readonly>
-      <button id="copy-link-button">Copy Link</button>
+  <header id="controls">
+    <h1>Real-time Transcription</h1>
+    <div id="buttons">
+      <button id="start-button" class="control-button">
+        <i class="fas fa-play"></i>
+        <span>Start</span>
+      </button>
+      <button id="stop-button" class="control-button" disabled>
+        <i class="fas fa-stop"></i>
+        <span>Stop</span>
+      </button>
+      <button id="fullscreen-button" class="control-button">
+        <i class="fas fa-expand"></i>
+        <span>Full Screen</span>
+      </button>
     </div>
-  </div>
+    <div id="stream-info" class="hidden">
+      <div id="stream-id-container">
+        <p>Your Stream ID: <strong id="stream-id"></strong></p>
+        <p>Share this link:</p>
+        <div id="link-container">
+          <input type="text" id="stream-link" readonly>
+          <button id="copy-link-button" class="control-button">
+            <i class="fas fa-copy"></i>
+            <span>Copy</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
 
   <div id="transcription-container"></div>
 

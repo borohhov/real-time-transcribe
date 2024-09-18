@@ -19,6 +19,93 @@ body {
     font-size: 2em;
   }
 }
+/* Header / Controls */
+header#controls {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background-color: #1f1f1f;
+  padding: 15px 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+}
+
+header#controls h1 {
+  margin: 0;
+  font-size: 1.8em;
+  text-align: center;
+}
+
+#buttons {
+  display: flex;
+  justify-content: center;
+  margin-top: 15px;
+  gap: 15px;
+}
+
+.control-button {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  border: none;
+  padding: 12px 20px;
+  font-size: 1em;
+  cursor: pointer;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.3s;
+}
+
+.control-button i {
+  font-size: 1.2em;
+}
+
+.control-button:disabled {
+  background-color: #555555;
+  cursor: not-allowed;
+}
+
+.control-button:not(:disabled):hover {
+  background-color: #3e3e3e;
+}
+
+#stream-info {
+  margin-top: 20px;
+  text-align: center;
+}
+
+#stream-id-container p {
+  margin: 5px 0;
+}
+
+#link-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+#stream-link {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  border: none;
+  padding: 8px;
+  width: 250px;
+  border-radius: 5px;
+}
+
+#copy-link-button {
+  padding: 8px 15px;
+}
+
+#copy-link-button i {
+  font-size: 1em;
+}
 
 
 /* Transcription Container */

@@ -57,7 +57,7 @@ export const startTranscription = (ws: CustomWebSocket, streamID: string) => {
 
 
   const sourceLanguageCode: SupportedSourceLanguageCode = 'en-US';
-  const targetLanguageCode: SupportedTargetLanguageCode = 'et-EE';
+  const targetLanguageCode: SupportedTargetLanguageCode = 'ru-RU';
   const translationService = new TranslationService();
 
   (async () => {
@@ -68,6 +68,7 @@ export const startTranscription = (ws: CustomWebSocket, streamID: string) => {
       AudioStream: getAudioStream(),
       EnablePartialResultsStabilization: true,
       PartialResultsStability: 'high',
+      VocabularyName: process.env.CUSTOM_VOCABULARY_NAME,
     });
     try {
       const response = await new TranscribeStreamingClient({
