@@ -6,6 +6,7 @@ This simple application allows you to listen to speech and generate real-time su
 
 ## Prerequisites
 - An AWS account with appropriate permissions
+- An OpenAI API key
 - Node.js installed on your machine
 
 ## Setup
@@ -26,6 +27,7 @@ This simple application allows you to listen to speech and generate real-time su
    AWS_ACCESS_KEY_ID=<your-access-key-id>
    AWS_SECRET_ACCESS_KEY=<your-secret-access-key>
    AWS_REGION=<your-region>
+   OPENAI_API_KEY=<your-openai-api-key>
    ```
    Replace the placeholders with your actual AWS credentials.
 
@@ -33,10 +35,10 @@ This simple application allows you to listen to speech and generate real-time su
 
 To start the application, run:
 ```
-node server.js
+npm run dev
 ```
 
-If all is well, you should be able to open your browser and navigate to `http://localhost:3000`.
+If all is well, you should be able to open your browser and navigate to `http://localhost:8080`.
 
 
 
