@@ -16,7 +16,9 @@ function startSubscription() {
   }
 
   // Initialize WebSocket
-  socket = new WebSocket(`ws://localhost:8080`);
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+  const wsHost = window.location.host;
+  const socket = new WebSocket(`${wsProtocol}${wsHost}`);
 
   socket.onopen = () => {
     console.log('WebSocket connection opened');

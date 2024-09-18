@@ -42,7 +42,9 @@ async function startTranscription() {
 
   // Initialize or reuse WebSocket
   if (!socket || socket.readyState !== WebSocket.OPEN) {
-    socket = new WebSocket(`ws://localhost:8080`);
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const wsHost = window.location.host;
+    socket = new WebSocket(`${wsProtocol}${wsHost}`);
 
     socket.onopen = () => {
       console.log('WebSocket connection opened');
