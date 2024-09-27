@@ -3,28 +3,16 @@ import { TranscribeStreamingClient, StartStreamTranscriptionCommand, ItemType } 
 import { streams } from '../types/stream';
 import WebSocket from 'ws';
 import { CustomWebSocket } from '../types/customWebSocket';
-import { initializeNewAudioStream } from './streamController';
 import { TranslationService } from '../services/translation/translationService';
-import { TranscriptionMessage } from '../common/types/transcriptionMessage';
-import { SupportedSourceLanguageCode, SupportedTargetLanguageCode } from '../common/types/supportedLanguageCodes';
+import { SourceLangCode, TargetLangCode } from '../common/types/supportedLanguageCodes';
 
-export const startTranscription = (ws: CustomWebSocket, streamID: string) => {
+export const startTranscription = (ws: CustomWebSocket, streamID: string, language?: TargetLangCode) => {
   const stream = streams.get(streamID);
   if (!stream) {
     console.error('Stream not found for startTranscription');
     return;
   }
 
-  if (stream.audioStream) {
-    stream.audioStream.removeAllListeners();
-    stream.audioStream = null;
-  }
-  if (stream.abortController) {
-    stream.abortController.abort();
-    stream.abortController = null;
-  }
-
-  initializeNewAudioStream(stream);
   const audioStream = stream.audioStream!;
 
   const onClose = () => {
@@ -56,8 +44,8 @@ export const startTranscription = (ws: CustomWebSocket, streamID: string) => {
   }
 
 
-  const sourceLanguageCode: SupportedSourceLanguageCode = 'en-US';
-  const targetLanguageCode: SupportedTargetLanguageCode = 'ru-RU';
+  const sourceLanguageCode: SourceLangCode = 'en-US';
+  const targetLanguageCode: TargetLangCode = language ?? 'en-US';
   const translationService = new TranslationService();
 
   (async () => {
@@ -86,13 +74,17 @@ export const startTranscription = (ws: CustomWebSocket, streamID: string) => {
           const result = event.TranscriptEvent.Transcript.Results[0];
           if (result.Alternatives?.length) {
             const transcript = result.Alternatives[0].Transcript;
+            if (sourceLanguageCode === targetLanguageCode) {
+              console.log("transcript without translation:", transcript)
+              sendTranscriptToClients(transcript!, result.IsPartial ?? false);
+            }
             // Buffer partial transcripts
-            if (result.IsPartial) {
+            else if (result.IsPartial) {
               const items = result.Alternatives[0].Items || [];
               const lastItemIndex = items.length - 1;
               const lastItem = items[lastItemIndex];
-              
-              if(lastItem?.Type === ItemType.PUNCTUATION || lastItemIndex > previousLastItemIndex + 4) { // doesnt't seem to work
+
+              if(lastItem?.Type === ItemType.PUNCTUATION) { 
                 console.log("transcript:", transcript)
                 const translatedTranscript = await translationService.translate(
                   transcript!,

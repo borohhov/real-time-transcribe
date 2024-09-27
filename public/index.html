@@ -3,17 +3,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Real-time Transcription</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
   <header id="controls">
-    <h1>Real-time Transcription</h1>
     <div id="buttons">
       <button id="start-button" class="control-button">
         <i class="fas fa-play"></i>
         <span>Start</span>
+      </button>
+      <button id="pause-button" class="control-button" disabled>
+        <i class="fas fa-pause"></i>
+        <span>Pause</span>
       </button>
       <button id="stop-button" class="control-button" disabled>
         <i class="fas fa-stop"></i>
@@ -24,9 +26,8 @@
         <span>Full Screen</span>
       </button>
     </div>
-    <div id="stream-info" class="hidden">
+    <!--div id="stream-info" class="hidden">
       <div id="stream-id-container">
-        <p>Your Stream ID: <strong id="stream-id"></strong></p>
         <p>Share this link:</p>
         <div id="link-container">
           <input type="text" id="stream-link" readonly>
@@ -35,12 +36,25 @@
             <span>Copy</span>
           </button>
         </div>
-      </div>
+      </div->
+      
+    </div-->
+    <div id="language-selection">
+      <label for="language-select">Language to translate to:</label>
+      <select id="language-select">
+        <option value="en-US">English</option>
+        <option value="it-IT">Italian</option>
+        <option value="et-EE">Estonian</option>
+        <option value="ru-RU">Russian</option>
+        <option value="lv-LV">Latvian</option>
+        <option value="lt-LT">Lithuanian</option>
+        <option value="sr-RS">Serbian</option>
+      </select>
     </div>
   </header>
 
   <div id="transcription-container"></div>
 
-  <script src="script.js"></script>
+  <script src="script.js" ></script>
 </body>
 </html>

@@ -82,7 +82,7 @@ header#controls h1 {
   margin: 5px 0;
 }
 
-#link-container {
+#link-container, #language-selection {
   display: flex;
   justify-content: center;
   align-items: center;

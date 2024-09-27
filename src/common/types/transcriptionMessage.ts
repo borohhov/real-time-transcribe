@@ -1,10 +1,10 @@
-import { SupportedSourceLanguageCode, SupportedTargetLanguageCode } from "./supportedLanguageCodes";
+import { SourceLangCode, TargetLangCode } from "./supportedLanguageCodes";
 
 
 export interface TranscriptionMessage {
     type: 'transcript';
-    sourceLanguageCode: SupportedSourceLanguageCode;
-    destinationLanguageCode: SupportedTargetLanguageCode;
+    sourceLanguageCode: SourceLangCode;
+    destinationLanguageCode: TargetLangCode;
     transcript: string;
     isPartial: boolean;
     streamID: string;

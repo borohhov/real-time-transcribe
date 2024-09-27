@@ -1,2 +1,2 @@
-export type SupportedSourceLanguageCode = 'en-US' | 'es-US' | 'fr-FR';
-export type SupportedTargetLanguageCode = 'en-US' | 'ru-RU' | 'et-EE';
+export type SourceLangCode = 'en-US' | 'es-US' | 'fr-FR';
+export type TargetLangCode = 'en-US' | 'ru-RU' | 'et-EE' | 'lv-LV' | 'lt-LT' | 'sr-RS';

@@ -8,34 +8,70 @@ let fullTranscript = '';
 let mediaStream;
 let streamID = null; // To store the streamID assigned by the server
 let isTranscribing = false; // To track transcription state
-
+let isPaused = false;
+let partialLine = null;
+let previousWords = [];
+let previousLine = null;
 const startButton = document.getElementById('start-button');
+const pauseButton = document.getElementById('pause-button');
 const stopButton = document.getElementById('stop-button');
+
 const transcriptionContainer = document.getElementById('transcription-container');
 const streamIDElement = document.getElementById('stream-id'); // Element to display streamID
 const streamLinkInput = document.getElementById('stream-link');
 const copyLinkButton = document.getElementById('copy-link-button');
+const languageSelect = document.getElementById('language-select');
 
 // QR code container (if you're using QR codes)
 const qrCodeContainer = document.getElementById('qr-code');
 
+let selectedLanguage = 'en-US';
+
 startButton.addEventListener('click', startTranscription);
 stopButton.addEventListener('click', stopTranscription);
+pauseButton.addEventListener('click', pauseTranscription);
+languageSelect.addEventListener('change', onLanguageChange);
 
-copyLinkButton.addEventListener('click', () => {
+
+/*copyLinkButton.addEventListener('click', () => {
   streamLinkInput.select();
   document.execCommand('copy');
   alert('Link copied to clipboard!');
-});
+});*/
+
+function onLanguageChange() {
+  selectedLanguage = languageSelect.value;
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'change_language', language: selectedLanguage }));
+  }
+}
 
 async function startTranscription() {
-  if (isTranscribing) {
+  if (isTranscribing && !isPaused) {
     console.log('Already transcribing');
     return;
   }
 
+  if (isPaused) {
+    // Resume transcription
+    isPaused = false;
+    startButton.disabled = true;
+    pauseButton.disabled = false;
+    stopButton.disabled = false;
+
+    // Send 'start' message to the server to resume transcription
+    sendStartMessage();
+
+    // Re-initialize audio stream if necessary
+    initializeAudioStream();
+
+    return;
+  }
+
+  // Proceed with starting transcription as before
   startButton.disabled = true;
   stopButton.disabled = false;
+  pauseButton.disabled = false;
   transcriptionContainer.innerHTML = '';
 
   fullTranscript = '';
@@ -47,15 +83,9 @@ async function startTranscription() {
     socket = new WebSocket(`${wsProtocol}${wsHost}`);
 
     socket.onopen = () => {
-      console.log('WebSocket connection opened');
-
-      // Send initial message to start a new audio stream
       sendStartMessage();
-
-      // Initialize audio stream after sending the initial message
       initializeAudioStream();
     };
-
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
@@ -119,13 +149,38 @@ async function startTranscription() {
   isTranscribing = true;
 }
 
+
 function sendStartMessage() {
-  const message = { type: 'start' };
+  const message = { type: 'start', language: selectedLanguage };
   if (streamID) {
     message.streamID = streamID;
   }
   socket.send(JSON.stringify(message));
 }
+
+function pauseTranscription() {
+  if (!isTranscribing || isPaused) return;
+
+  isPaused = true;
+  startButton.disabled = false;
+  pauseButton.disabled = true;
+  stopButton.disabled = false;
+
+  // Send 'pause' message to the server
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'pause' }));
+  }
+
+  // Stop the audio processing
+  if (processor && processor.port) {
+    processor.port.close();
+  }
+  if (audioContext) {
+    audioContext.suspend();
+  }
+}
+
+
 
 function stopTranscription() {
   if (!isTranscribing) {
@@ -133,9 +188,21 @@ function stopTranscription() {
     return;
   }
 
+  // Set both flags to false since we're stopping transcription
+  isTranscribing = false;
+  isPaused = false;
+
+  // Update button states
   startButton.disabled = false;
+  pauseButton.disabled = true;
   stopButton.disabled = true;
 
+  // Send 'stop' message to the server
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'stop', streamID }));
+  }
+
+  // Close audio processing
   if (processor && processor.port) {
     processor.port.close();
   }
@@ -143,12 +210,7 @@ function stopTranscription() {
     audioContext.close();
   }
 
-  // Send stop message to the server
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ type: 'stop', streamID }));
-  }
-
-  // Stop all tracks in the media stream
+  // Stop media stream tracks
   if (mediaStream) {
     mediaStream.getTracks().forEach((track) => track.stop());
   }
@@ -158,30 +220,33 @@ function stopTranscription() {
   processor = null;
   input = null;
   mediaStream = null;
-
-  isTranscribing = false;
 }
 
+
 async function initializeAudioStream() {
-  audioContext = new (window.AudioContext || window.webkitAudioContext)({
-    sampleRate: 44100,
-  });
+  if (audioContext && audioContext.state === 'suspended') {
+    await audioContext.resume();
+  } else {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)({
+      sampleRate: 44100,
+    });
 
-  mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  input = audioContext.createMediaStreamSource(mediaStream);
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    input = audioContext.createMediaStreamSource(mediaStream);
 
-  processor = audioContext.createScriptProcessor(4096, 1, 1);
-  processor.onaudioprocess = (e) => {
-    const inputData = e.inputBuffer.getChannelData(0);
-    const inputData16 = downsampleBuffer(inputData, audioContext.sampleRate, 44100);
-    if (socket.readyState === WebSocket.OPEN) {
-      // Send the audio data as binary data
-      socket.send(inputData16);
-    }
-  };
+    processor = audioContext.createScriptProcessor(4096, 1, 1);
+    processor.onaudioprocess = (e) => {
+      const inputData = e.inputBuffer.getChannelData(0);
+      const inputData16 = downsampleBuffer(inputData, audioContext.sampleRate, 44100);
+      if (socket.readyState === WebSocket.OPEN) {
+        // Send the audio data as binary data
+        socket.send(inputData16);
+      }
+    };
 
-  input.connect(processor);
-  processor.connect(audioContext.destination);
+    input.connect(processor);
+    processor.connect(audioContext.destination);
+  }
 }
 
 // Downsample audio buffer to 44100 Hz
@@ -229,56 +294,47 @@ function fadeIn(element) {
   element.classList.remove('fade-in');
 }
 
-let partialLine = null;
-let previousWords = [];
-let previousLine = null;
+
 function updateTranscription(transcript, isPartial) {
   if (isPartial) {
-    // Your existing code for handling partial transcripts
-    // ...
+    const words = transcript.split(' ');
+    if (!partialLine) {
+      partialLine = document.createElement('div');
+      partialLine.className = 'transcription-line partial';
+      transcriptionContainer.appendChild(partialLine);
+    }
+    partialLine.innerHTML = '\n';
+    words.forEach((word, index) => {
+      const wordSpan = document.createElement('span');
+      wordSpan.className = 'word';
+      wordSpan.textContent = word + (index < words.length - 1 ? ' ' : '');
+
+      if (previousWords[index] !== word) {
+        wordSpan.classList.add('fade-in');
+        void wordSpan.offsetHeight;
+        wordSpan.classList.remove('fade-in');
+      }
+      partialLine.appendChild(wordSpan);
+    });
+    partialLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    previousWords = words.slice();
   } else {
-    // Finalized transcript
     if (partialLine) {
-      // Finalize the partial line
       partialLine.classList.remove('partial');
-      
       // Remove fade-in classes from words
       const wordElements = partialLine.getElementsByClassName('word');
       for (let wordElement of wordElements) {
         wordElement.classList.remove('fade-in');
       }
-      
-      // **Apply the new-line class**
-      if (previousLine) {
-        previousLine.classList.remove('new-line');
-      }
-      partialLine.classList.add('new-line');
-      previousLine = partialLine;
-      
       partialLine.scrollIntoView({ behavior: 'smooth', block: 'end' });
       partialLine = null;
     } else {
-      // **Handle sentences that appear at once**
-      
-      // Remove 'new-line' class from previous line
-      if (previousLine) {
-        previousLine.classList.remove('new-line');
-      }
-      
-      // Create a new line with the 'new-line' class
       const line = document.createElement('div');
-      line.className = 'transcription-line new-line';
+      line.className = 'transcription-line';
       line.textContent = transcript;
       transcriptionContainer.appendChild(line);
-      
-      // Scroll the new line into view
       line.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      
-      // Update previousLine
-      previousLine = line;
     }
-    
-    // Reset previousWords
     previousWords = [];
   }
 }
