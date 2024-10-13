@@ -1,10 +1,10 @@
 
 import { TranscribeStreamingClient, StartStreamTranscriptionCommand, ItemType } from '@aws-sdk/client-transcribe-streaming';
-import { streams } from '../types/stream';
+import { streams } from '../common/stream';
 import WebSocket from 'ws';
-import { CustomWebSocket } from '../types/customWebSocket';
+import { CustomWebSocket } from '../common/customWebSocket';
 import { TranslationService } from '../services/translation/translationService';
-import { SourceLangCode, TargetLangCode } from '../common/types/supportedLanguageCodes';
+import { SourceLangCode, TargetLangCode } from '../common/supportedLanguageCodes';
 
 export const startTranscription = (ws: CustomWebSocket, streamID: string, language?: TargetLangCode) => {
   const stream = streams.get(streamID);
@@ -70,22 +70,24 @@ export const startTranscription = (ws: CustomWebSocket, streamID: string, langua
       let lastTranslatedChunk = '';
       for await (const event of response.TranscriptResultStream!) {
         if (!stream.isTranscribing) break;
+        
         if (event.TranscriptEvent?.Transcript?.Results?.length) {
           const result = event.TranscriptEvent.Transcript.Results[0];
+          
           if (result.Alternatives?.length) {
             const transcript = result.Alternatives[0].Transcript;
+            const items = result.Alternatives[0].Items || [];
+            let lastItemIndex = items.length - 1;
+            const lastItem = items[lastItemIndex];
             if (sourceLanguageCode === targetLanguageCode) {
               console.log("transcript without translation:", transcript)
               sendTranscriptToClients(transcript!, result.IsPartial ?? false);
             }
+            
             // Buffer partial transcripts
             else if (result.IsPartial) {
-              const items = result.Alternatives[0].Items || [];
-              const lastItemIndex = items.length - 1;
-              const lastItem = items[lastItemIndex];
-
-              if(lastItem?.Type === ItemType.PUNCTUATION) { 
-                console.log("transcript:", transcript)
+              if(lastItem?.Type === ItemType.PUNCTUATION || lastItemIndex - previousLastItemIndex > 40) { 
+                console.log('previousLastItemIndex' + previousLastItemIndex + ', lastItemIndex: ' + lastItemIndex + '\n\ntranscript: \n' + transcript)
                 const translatedTranscript = await translationService.translate(
                   transcript!,
                   sourceLanguageCode,
@@ -95,6 +97,7 @@ export const startTranscription = (ws: CustomWebSocket, streamID: string, langua
                 lastTranslatedChunk = transcript!
                 previousLastItemIndex = lastItemIndex;
                 sendTranscriptToClients(translatedTranscript, true);
+                continue;
               }      
             } 
             else {
@@ -104,6 +107,7 @@ export const startTranscription = (ws: CustomWebSocket, streamID: string, langua
                 targetLanguageCode,
                 lastTranslatedChunk
               );
+              lastItemIndex = items.length - 1;
               sendTranscriptToClients(translatedTranscript, false);
             }
           }

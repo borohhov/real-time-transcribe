@@ -1,10 +1,11 @@
 // src/controllers/streamController.ts
-import { CustomWebSocket } from '../types/customWebSocket';
+import { CustomWebSocket } from '../common/customWebSocket';
 import { v4 as uuidv4 } from 'uuid';
 import { startTranscription } from './transcriptionController';
-import { Stream, streams } from '../types/stream';
+import { Stream, streams } from '../common/stream';
 import { PassThrough } from 'node:stream';
-import { TargetLangCode } from '../common/types/supportedLanguageCodes';
+import { TargetLangCode } from '../common/supportedLanguageCodes';
+import { resetInactivityTimer } from './streamInactivityController';
 
 export const handleWebSocketConnection = (ws: CustomWebSocket) => {
   console.log('Client connected');
@@ -81,41 +82,17 @@ const subscribeToStream = (ws: CustomWebSocket, streamID: string) => {
 };
 
 const handleSubsequentMessages = (ws: CustomWebSocket, message: string | Buffer, isBinary: boolean) => {
+  const stream = streams.get(ws.streamID!);
+  
   if (ws.isAudioSource) {
     if (isBinary) {
-      const stream = streams.get(ws.streamID!);
+      resetInactivityTimer(ws, stream!);
+      
       if (stream && stream.isTranscribing && stream.audioStream) {
         stream.audioStream.write(message);
       }
     } else {
-      let msg;
-      try {
-        msg = JSON.parse(message.toString());
-      } catch (e) {
-        console.error('Invalid JSON message received:', message);
-        return;
-      }
-
-      if (msg.type === 'stop') {
-        console.log('stop message received');
-        stopTranscription(ws);
-      }
-      if (msg.type === 'pause') {
-        console.log('pause message received');
-        pauseTranscription(ws);
-      }
-      if (msg.type === 'start') {
-        console.log('start message received');
-        const stream = streams.get(ws.streamID!);
-        if (stream) {
-          initializeNewAudioStream(stream);
-          stream.isTranscribing = true;
-          startTranscription(ws, ws.streamID!, msg.language);
-        }
-      }
-      else if (msg.type === 'change_language') {
-        changeLanguage(ws, msg.language);
-      }
+      handleControlMessages(ws, message.toString());
     }
   } else {
     console.log('Subscriber sent unexpected message');
@@ -148,6 +125,33 @@ const destroyAudioStream = (stream: Stream) => {
   }
 }
 
+const handleControlMessages = (ws: CustomWebSocket, message: string) => {
+  let msg;
+  try {
+    msg = JSON.parse(message);
+  } catch (e) {
+    console.error('Invalid JSON message received:', message);
+    return;
+  }
+
+  if (msg.type === 'stop') {
+    console.log('stop message received');
+    stopTranscription(ws);
+  } else if (msg.type === 'pause') {
+    console.log('pause message received');
+    pauseTranscription(ws);
+  } else if (msg.type === 'start') {
+    const stream = streams.get(ws.streamID!);
+    if (stream) {
+      initializeNewAudioStream(stream);
+      stream.isTranscribing = true;
+      startTranscription(ws, ws.streamID!, msg.language);
+    }
+  } else if (msg.type === 'change_language') {
+    changeLanguage(ws, msg.language);
+  }
+};
+
 // Integrated handleDisconnection function
 const handleDisconnection = (ws: CustomWebSocket) => {
   const streamID = ws.streamID;
@@ -163,7 +167,13 @@ const handleDisconnection = (ws: CustomWebSocket) => {
         subscriber.close();
       });
 
-      // Clean up the stream resources
+      // Clear inactivity timeout if exists
+      if (stream.inactivityTimeout) {
+        clearTimeout(stream.inactivityTimeout);
+        stream.inactivityTimeout = null;
+      }
+
+      // Clean up stream resources
       if (stream.listenerCleanup) {
         stream.listenerCleanup();
         stream.listenerCleanup = null;
@@ -183,12 +193,14 @@ const handleDisconnection = (ws: CustomWebSocket) => {
   }
 };
 
+
 export const initializeNewAudioStream = (stream: Stream) => {
   if (stream.audioStream) {
     stream.audioStream.destroy();
   }
   stream.audioStream = new PassThrough();
 };
+
 
 const changeLanguage = async (ws: CustomWebSocket, newLanguage: TargetLangCode) => {
   pauseTranscription(ws);
@@ -201,3 +213,4 @@ const changeLanguage = async (ws: CustomWebSocket, newLanguage: TargetLangCode) 
     
 
 };
+

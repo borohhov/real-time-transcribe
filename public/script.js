@@ -1,5 +1,4 @@
 // public/script.js
-
 let socket;
 let audioContext;
 let processor;
@@ -21,7 +20,7 @@ const streamIDElement = document.getElementById('stream-id'); // Element to disp
 const streamLinkInput = document.getElementById('stream-link');
 const copyLinkButton = document.getElementById('copy-link-button');
 const languageSelect = document.getElementById('language-select');
-
+const controls = document.getElementById('controls');
 // QR code container (if you're using QR codes)
 const qrCodeContainer = document.getElementById('qr-code');
 
@@ -31,7 +30,9 @@ startButton.addEventListener('click', startTranscription);
 stopButton.addEventListener('click', stopTranscription);
 pauseButton.addEventListener('click', pauseTranscription);
 languageSelect.addEventListener('change', onLanguageChange);
-
+document.addEventListener('mousemove', resetInactivityTimer);
+document.addEventListener('touchstart', resetInactivityTimer);
+document.addEventListener('keydown', resetInactivityTimer); 
 
 /*copyLinkButton.addEventListener('click', () => {
   streamLinkInput.select();
@@ -45,8 +46,27 @@ function onLanguageChange() {
     socket.send(JSON.stringify({ type: 'change_language', language: selectedLanguage }));
   }
 }
+let inactivityTimeout = null; // To track inactivity and hide the controls
+
+function resetInactivityTimer() {
+  // Make the controls visible when there is activity
+  controls.classList.add('visible');
+  controls.classList.remove('hidden');
+
+  // Clear any previous inactivity timeout
+  if (inactivityTimeout) {
+    clearTimeout(inactivityTimeout);
+  }
+
+  // Set a new timeout to hide the controls after 3 seconds of inactivity
+  inactivityTimeout = setTimeout(() => {
+    controls.classList.add('hidden');
+    controls.classList.remove('visible');
+  }, 3000); // 3 seconds of inactivity
+}
 
 async function startTranscription() {
+  requestWakeLock();
   if (isTranscribing && !isPaused) {
     console.log('Already transcribing');
     return;
@@ -64,7 +84,7 @@ async function startTranscription() {
 
     // Re-initialize audio stream if necessary
     initializeAudioStream();
-
+    resetInactivityTimer();
     return;
   }
 
@@ -159,6 +179,7 @@ function sendStartMessage() {
 }
 
 function pauseTranscription() {
+  releaseWakeLock();
   if (!isTranscribing || isPaused) return;
 
   isPaused = true;
@@ -178,11 +199,13 @@ function pauseTranscription() {
   if (audioContext) {
     audioContext.suspend();
   }
+  resetInactivityTimer();
 }
 
 
 
 function stopTranscription() {
+  releaseWakeLock();
   if (!isTranscribing) {
     console.log('Not currently transcribing');
     return;
@@ -220,6 +243,7 @@ function stopTranscription() {
   processor = null;
   input = null;
   mediaStream = null;
+  resetInactivityTimer();
 }
 
 

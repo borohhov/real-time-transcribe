@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { PassThrough } from 'stream';
-import { TargetLangCode } from '../common/types/supportedLanguageCodes';
+import { TargetLangCode } from './supportedLanguageCodes';
+import { INACTIVITY_TIMEOUT_MS } from './transcriptionMessage';
 
 export class Stream {
   audioSource: WebSocket;
@@ -9,6 +10,7 @@ export class Stream {
   audioStream: PassThrough | null = null;
   abortController: AbortController | null = null;
   language?: TargetLangCode;
+  inactivityTimeout: any;
   isPaused: boolean = false;
   listenerCleanup: (() => void) | null = null;
 
@@ -18,6 +20,7 @@ export class Stream {
 
   constructor(audioSource: WebSocket) {
     this.audioSource = audioSource;
+    this.inactivityTimeout = INACTIVITY_TIMEOUT_MS
   }
 }
 

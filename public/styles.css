@@ -19,6 +19,44 @@ body {
     font-size: 2em;
   }
 }
+
+
+/* Add media query for mobile responsiveness */
+@media (max-width: 600px) {
+  #buttons {
+    flex-direction: column; /* Stack buttons vertically on smaller screens */
+    gap: 10px;
+  }
+
+  .control-button {
+    padding: 15px 25px; /* Increase padding to make buttons larger */
+    font-size: 1.2em; /* Increase font size */
+  }
+
+  .control-button i {
+    font-size: 1.5em; /* Increase icon size */
+  }
+
+  #language-selection {
+    flex-direction: column; /* Stack the language selection vertically */
+  }
+
+  #language-selection label {
+    margin-bottom: 5px;
+  }
+}
+
+#controls.hidden {
+  opacity: 0;
+  pointer-events: none; /* Disable interaction with hidden controls */
+  transition: opacity 0.5s ease-in-out;
+}
+
+#controls.visible {
+  opacity: 1;
+  pointer-events: auto; /* Re-enable interaction */
+  transition: opacity 0.5s ease-in-out;
+}
 /* Header / Controls */
 header#controls {
   position: fixed;
@@ -173,3 +211,4 @@ button {
 .transcription-line {
   transition: color 0.5s ease;
 }
+
