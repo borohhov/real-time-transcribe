@@ -10,7 +10,6 @@ let isTranscribing = false; // To track transcription state
 let isPaused = false;
 let partialLine = null;
 let previousWords = [];
-let previousLine = null;
 const startButton = document.getElementById('start-button');
 const pauseButton = document.getElementById('pause-button');
 const stopButton = document.getElementById('stop-button');

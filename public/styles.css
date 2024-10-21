@@ -172,13 +172,15 @@ header#controls h1 {
 
 /* Partial Transcription Line */
 .partial {
-
-  color: #fff; /* White color for partial text */
+  color: #fff; 
 }
 
-/* Fade-in effect */
+.transcription-line:last-child {
+  color: #fff;
+}
+
 .fade-in {
-  opacity: 0; /* Start with opacity 0 */
+  opacity: 0; 
 }
 
 /* Control Buttons */
