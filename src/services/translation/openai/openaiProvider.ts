@@ -5,10 +5,10 @@ export class OpenAIProvider implements TranslationProvider {
 
 
   async translate(text: string, sourceLang: string = 'en-US', targetLang: string = 'et-EE', context?: string): Promise<string> {
-    const correctionPrompt = 'Never output any explanation or reasoning. If the sentence is illogical, guess the context, i.e. "Sunday without a cherry" might be an incorrect translation for "Sundae without a cherry". Do not add punctuation to the end of the text if it is not already present. Remove repetitive words and phrases and make the text more natural.';
-    let prompt = `Translate the following text from ${sourceLang} to ${targetLang}. ${correctionPrompt}`;
-    if(context) {
-      prompt = `Translate the following text from ${sourceLang} to ${targetLang}. You are translating live subtitles that get updated every few seconds. Try not to change previously translated chunks. Previous chunk: ${context} ${correctionPrompt}. `;
+    const additionalInstruction = 'Never output any explanation,question, error message or reasoning, only the translation. You are translating spiritual talks, so if there is a word you do not understand, try to find a sensible word from the indian philosophy. Remove duplicate words, repetitions, and phrases like \'um\' and similar';
+    let prompt = `Translate the following text from ${sourceLang} to ${targetLang}. ${additionalInstruction}`;
+    if( context ) {
+      prompt = `Translate the following text from ${sourceLang} to ${targetLang}. You are translating live subtitles that get updated every few seconds. Try not to change previously translated chunks. Previous chunk: ${context} ${additionalInstruction}. `;
     }
     try {
       const response = await axios.post(

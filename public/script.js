@@ -257,7 +257,7 @@ async function initializeAudioStream() {
     mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     input = audioContext.createMediaStreamSource(mediaStream);
 
-    processor = audioContext.createScriptProcessor(4096, 1, 1);
+    processor = audioContext.createScriptProcessor(2048, 1, 1);
     processor.onaudioprocess = (e) => {
       const inputData = e.inputBuffer.getChannelData(0);
       const inputData16 = downsampleBuffer(inputData, audioContext.sampleRate, 44100);

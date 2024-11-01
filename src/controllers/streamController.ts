@@ -86,7 +86,7 @@ const handleSubsequentMessages = (ws: CustomWebSocket, message: string | Buffer,
   
   if (ws.isAudioSource) {
     if (isBinary) {
-      resetInactivityTimer(ws, stream!);
+      setTimeout(() => resetInactivityTimer(ws, stream!), 2000);  // slight delay to make sure the stream is processed fully
       
       if (stream && stream.isTranscribing && stream.audioStream) {
         stream.audioStream.write(message);
@@ -120,7 +120,8 @@ const pauseTranscription = (ws: CustomWebSocket) => {
 
 const destroyAudioStream = (stream: Stream) => {
   if (stream.audioStream) {
-    stream.audioStream.destroy();
+    stream.audioStream.end();
+    setTimeout(() => stream.audioStream!.destroy(), 300)
     stream.audioStream = null;
   }
 }

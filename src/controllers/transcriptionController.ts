@@ -8,6 +8,7 @@ import WebSocket from 'ws';
 import { CustomWebSocket } from '../common/customWebSocket';
 import { TranslationService } from '../services/translation/translationService';
 import { SourceLangCode, TargetLangCode } from '../common/supportedLanguageCodes';
+import { TranscriptItem, TranslationContext } from '../common/transcriptionMessage';
 
 export const startTranscription = (
   ws: CustomWebSocket,
@@ -122,6 +123,7 @@ async function handleTranscription(
     EnablePartialResultsStabilization: true,
     PartialResultsStability: 'high',
     VocabularyName: process.env.CUSTOM_VOCABULARY_NAME,
+    LanguageModelName: process.env.LANGUAGE_MODEL_NAME
   });
 
   try {
@@ -136,6 +138,7 @@ async function handleTranscription(
     const response = await client.send(command, { abortSignal });
     const translationContext: TranslationContext = {
       untranslatedBuffer: '',
+      lastProcessedItemIndex: 0,
       previousItems: []
     };
 
@@ -156,11 +159,6 @@ async function handleTranscription(
   } catch (err) {
     throw err;
   }
-}
-
-interface TranslationContext {
-  previousItems: any[]; // Store previous items for comparison
-  untranslatedBuffer: string; // Accumulates text to be translated
 }
 
 async function processTranscriptEvent(
@@ -184,51 +182,40 @@ async function processTranscriptEvent(
         return;
       }
 
-      // Compare current items with previous items to find new additions
-      let startIndex = 0;
-      const prevItems = translationContext.previousItems || [];
-      while (
-        startIndex < items.length &&
-        startIndex < prevItems.length &&
-        items[startIndex].Content === prevItems[startIndex].Content
-      ) {
-        startIndex++;
+      // If items have changed significantly, reset lastProcessedItemIndex
+      if (translationContext.lastProcessedItemIndex > items.length) {
+        translationContext.lastProcessedItemIndex = 0;
       }
 
-      // Extract new items from the point where they differ
+      // Start from the last processed index
+      const startIndex = translationContext.lastProcessedItemIndex || 0;
       const newItems = items.slice(startIndex);
 
-      // Update the previousItems for the next comparison
-      translationContext.previousItems = items;
+      // Update the last processed item index
+      translationContext.lastProcessedItemIndex = items.length;
 
       if (newItems.length > 0) {
-        // Reconstruct new text with proper spacing
         const newText = reconstructTranscript(newItems);
-
-        // Append new text to the untranslated buffer
         translationContext.untranslatedBuffer += newText;
       }
 
       const shouldTranslate = checkShouldTranslate(translationContext.untranslatedBuffer);
 
       if (shouldTranslate || !result.IsPartial) {
-        // Translate the buffered text
         const translatedText = await translationService.translate(
           translationContext.untranslatedBuffer,
           sourceLanguageCode,
-          targetLanguageCode,
-          prevItems.join(' ')
+          targetLanguageCode
         );
 
-        // Send the translated text
         sendTranscript(translatedText, false);
-
-        // Clear the untranslated buffer
+        console.log(translationContext.untranslatedBuffer)
         translationContext.untranslatedBuffer = '';
       }
     }
   }
 }
+
 
 // Helper function to reconstruct transcript with proper spacing
 function reconstructTranscript(items: any[]): string {
@@ -236,25 +223,12 @@ function reconstructTranscript(items: any[]): string {
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const content = item.Content;
-    const itemType = item.Type;
-
-    if (itemType === 'pronunciation') {
-      transcript += content;
-
-      // Add a space after words if the next item is not punctuation
-      const nextItem = items[i + 1];
-      if (nextItem && nextItem.Type === 'pronunciation') {
-        transcript += ' ';
-      } else if (!nextItem) {
-        // If it's the last item, add a space
-        transcript += ' ';
-      }
-    } else if (itemType === 'punctuation') {
-      transcript += content;
-    }
+    transcript += ' ' + content;
   }
-  return transcript.trim();
+  return transcript;
 }
+
+
 
 // Helper function to decide when to translate the buffered text
 function checkShouldTranslate(buffer: string): boolean {
