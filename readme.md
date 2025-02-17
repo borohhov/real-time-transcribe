@@ -2,7 +2,7 @@
 # Speech-to-Subtitles App
 
 ## Overview
-This simple application allows you to listen to speech and generate real-time subtitles.
+This simple application allows you to listen to speech and generate real-time subtitles. The code is built 90% by ChatGPT o1-preview as an experiment in creation of apps by an LLM.
 
 ## Prerequisites
 - An AWS account with appropriate permissions
