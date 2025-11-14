@@ -17,6 +17,7 @@
     "axios": "^1.7.7",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
+    "http-proxy-middleware": "^3.0.5",
     "node-abort-controller": "^3.1.1",
     "openai": "^4.61.1",
     "posthog-node": "^5.11.2",

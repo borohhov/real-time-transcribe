@@ -1,5 +1,5 @@
 (function () {
-  const DEFAULT_HOST = 'https://eu.i.posthog.com';
+  const DEFAULT_HOST = '/posthog';
   const anonymousId =
     (typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID()) ||
     `anon-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -100,7 +100,6 @@
     if (!client) {
       return false;
     }
-    console.log('client', client);
     if (!initialized) {
       client.identify(context.distinctId, {
         role: context.role,

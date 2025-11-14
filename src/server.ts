@@ -1,9 +1,10 @@
 // src/server.ts
 import express, { Application } from 'express';
 import http from 'http';
-import WebSocket, { WebSocketServer} from 'ws';
+import WebSocket, { WebSocketServer } from 'ws';
 import dotenv from 'dotenv';
 import path from 'path';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import { handleWebSocketConnection } from './controllers/streamController';
 import { shutdownPosthog } from './services/analytics/posthogClient';
 
@@ -16,10 +17,21 @@ const wss = new WebSocketServer({ server: server });
 const clientPosthogKey = process.env.POSTHOG_KEY;
 const posthogHost = process.env.POSTHOG_HOST;
 
+app.use(
+  '/posthog',
+  createProxyMiddleware({
+    target: posthogHost,
+    changeOrigin: true,
+    pathRewrite: {
+      '^/posthog': '',
+    },
+  })
+);
+
 app.get('/posthog-config.js', (_req, res) => {
   const payload = {
     apiKey: clientPosthogKey,
-    host: posthogHost,
+    host: '/posthog',
   };
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Cache-Control', 'no-store');
