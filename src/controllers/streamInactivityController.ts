@@ -1,6 +1,7 @@
 import { INACTIVITY_TIMEOUT_MS, SILENT_AUDIO } from "../common/transcriptionMessage";
 import { CustomWebSocket } from "../common/customWebSocket";
 import { Stream } from "../common/stream";
+import { captureServerEvent } from "../services/analytics/posthogClient";
 
 export const resetInactivityTimer = (ws: CustomWebSocket, stream: Stream) => {
     if (stream.inactivityTimeout) {
@@ -13,12 +14,15 @@ export const resetInactivityTimer = (ws: CustomWebSocket, stream: Stream) => {
   };
   
   // Function to handle inactivity (either send silence or close the stream)
-  const handleInactivity = (ws: CustomWebSocket, stream: Stream) => {
-    if (stream && stream.isTranscribing && stream.audioStream) {
-      console.log(`No audio for ${INACTIVITY_TIMEOUT_MS / 1000} seconds, sending silence.`);
-      stream.audioStream.write(SILENT_AUDIO);
-      resetInactivityTimer(ws, stream); // Reset timer after sending silence
-    }
-  };
+const handleInactivity = (ws: CustomWebSocket, stream: Stream) => {
+  if (stream && stream.isTranscribing && stream.audioStream) {
+    console.log(`No audio for ${INACTIVITY_TIMEOUT_MS / 1000} seconds, sending silence.`);
+    captureServerEvent('stream_inactivity_detected', ws.streamID || ws.analyticsId || 'server', {
+      streamID: ws.streamID,
+    });
+    stream.audioStream.write(SILENT_AUDIO);
+    resetInactivityTimer(ws, stream); // Reset timer after sending silence
+  }
+};
 
   

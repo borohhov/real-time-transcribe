@@ -2,9 +2,10 @@ import WebSocket from 'ws';
 import { PassThrough } from 'stream';
 import { TargetLangCode } from './supportedLanguageCodes';
 import { INACTIVITY_TIMEOUT_MS } from './transcriptionMessage';
+import { CustomWebSocket } from './customWebSocket';
 
 export class Stream {
-  audioSource: WebSocket;
+  audioSource: CustomWebSocket;
   subscribers: Set<WebSocket> = new Set();
   isTranscribing: boolean = true;
   audioStream: PassThrough | null = null;
@@ -13,14 +14,16 @@ export class Stream {
   inactivityTimeout: any;
   isPaused: boolean = false;
   listenerCleanup: (() => void) | null = null;
+  createdAt: number;
 
   // Add these properties
   transcriptionPassThrough: PassThrough | null = null;
   transcriptionProcess: Promise<void> | null = null;
 
-  constructor(audioSource: WebSocket) {
+  constructor(audioSource: CustomWebSocket) {
     this.audioSource = audioSource;
-    this.inactivityTimeout = INACTIVITY_TIMEOUT_MS
+    this.inactivityTimeout = INACTIVITY_TIMEOUT_MS;
+    this.createdAt = Date.now();
   }
 }
 

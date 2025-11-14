@@ -29,8 +29,15 @@ https://medium.com/@borohhov/genai-built-my-real-time-subtitles-app-faster-than-
    AWS_SECRET_ACCESS_KEY=<your-secret-access-key>
    AWS_REGION=<your-region>
    OPENAI_API_KEY=<your-openai-api-key>
+   POSTHOG_KEY=<posthog-public-key>
+   POSTHOG_HOST=<posthog-host>
    ```
-   Replace the placeholders with your actual AWS credentials.
+   Replace the placeholders with your actual AWS/OpenAI/PostHog credentials.
+
+## Analytics & Error Tracking
+
+
+If the PostHog keys are omitted, the analytics helpers are no-ops, so the application continues to run without emitting telemetry.
 
 ## Usage
 
@@ -40,6 +47,4 @@ npm run dev
 ```
 
 If all is well, you should be able to open your browser and navigate to `http://localhost:8080`.
-
-
 

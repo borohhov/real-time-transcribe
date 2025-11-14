@@ -25,6 +25,26 @@ const qrCodeContainer = document.getElementById('qr-code');
 
 let selectedLanguage = 'en-US';
 
+const analytics = window.appAnalytics;
+
+analytics?.setContext({ targetLanguage: selectedLanguage });
+
+const hostSessionId =
+  (typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID()) ||
+  `host-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+analytics?.init('host', { page: 'broadcaster', hostSessionId });
+analytics?.capture('host_ui_loaded', {
+  hostSessionId,
+  userAgent: navigator.userAgent,
+});
+analytics?.setContext({ hostSessionId });
+
+let hostSessionStartTime = null;
+let firstTranscriptLogged = false;
+let finalTranscriptCount = 0;
+let totalFinalCharacters = 0;
+let controlsHidden = false;
+
 startButton.addEventListener('click', startTranscription);
 stopButton.addEventListener('click', stopTranscription);
 pauseButton.addEventListener('click', pauseTranscription);
@@ -44,6 +64,12 @@ function onLanguageChange() {
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type: 'change_language', language: selectedLanguage }));
   }
+  analytics?.setContext({ targetLanguage: selectedLanguage });
+  analytics?.capture('language_changed', {
+    hostSessionId,
+    streamID,
+    language: selectedLanguage,
+  });
 }
 let inactivityTimeout = null; // To track inactivity and hide the controls
 
@@ -51,6 +77,11 @@ function resetInactivityTimer() {
   // Make the controls visible when there is activity
   controls.classList.add('visible');
   controls.classList.remove('hidden');
+
+  if (controlsHidden) {
+    analytics?.capture('controls_shown', { hostSessionId, streamID });
+    controlsHidden = false;
+  }
 
   // Clear any previous inactivity timeout
   if (inactivityTimeout) {
@@ -61,13 +92,23 @@ function resetInactivityTimer() {
   inactivityTimeout = setTimeout(() => {
     controls.classList.add('hidden');
     controls.classList.remove('visible');
+    controlsHidden = true;
+    analytics?.capture('controls_hidden', { hostSessionId, streamID });
   }, 3000); // 3 seconds of inactivity
+}
+
+function resetSessionMetrics() {
+  hostSessionStartTime = Date.now();
+  firstTranscriptLogged = false;
+  finalTranscriptCount = 0;
+  totalFinalCharacters = 0;
 }
 
 async function startTranscription() {
   requestWakeLock();
   if (isTranscribing && !isPaused) {
     console.log('Already transcribing');
+    analytics?.capture('host_start_ignored', { reason: 'already_transcribing', streamID });
     return;
   }
 
@@ -84,6 +125,11 @@ async function startTranscription() {
     // Re-initialize audio stream if necessary
     initializeAudioStream();
     resetInactivityTimer();
+    analytics?.capture('host_session_resumed', {
+      hostSessionId,
+      streamID,
+      language: selectedLanguage,
+    });
     return;
   }
 
@@ -95,6 +141,13 @@ async function startTranscription() {
 
   fullTranscript = '';
 
+  resetSessionMetrics();
+
+  analytics?.capture('host_session_started', {
+    hostSessionId,
+    language: selectedLanguage,
+  });
+
   // Initialize or reuse WebSocket
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -102,6 +155,7 @@ async function startTranscription() {
     socket = new WebSocket(`${wsProtocol}${wsHost}`);
 
     socket.onopen = () => {
+      analytics?.capture('host_socket_opened', { hostSessionId });
       sendStartMessage();
       initializeAudioStream();
     };
@@ -113,12 +167,21 @@ async function startTranscription() {
         if (!streamID) {
           streamID = data.streamID;
           console.log('Assigned streamID:', streamID);
+          analytics?.setContext({ streamID });
+          analytics?.capture('share_link_created', {
+            streamID,
+            hostSessionId,
+          });
 
           // Display the streamID and the shareable link
           if (streamIDElement && streamLinkInput) {
             streamIDElement.textContent = streamID;
             const streamURL = `${window.location.origin}/stream?streamID=${streamID}`;
             streamLinkInput.value = streamURL;
+            analytics?.capture('share_link_populated', {
+              streamID,
+              hostSessionId,
+            });
 
             // Generate QR code (if applicable)
             if (qrCodeContainer) {
@@ -130,6 +193,10 @@ async function startTranscription() {
                 width: 128,
                 height: 128,
               });
+              analytics?.capture('qr_rendered', {
+                streamID,
+                hostSessionId,
+              });
             }
           }
         }
@@ -140,17 +207,26 @@ async function startTranscription() {
       } else if (data.type === 'end') {
         // Handle end of stream
         console.log('Stream has ended.');
-        stopTranscription();
+        analytics?.capture('host_stream_end_received', { streamID, hostSessionId });
+        stopTranscription('stream_end');
       } else if (data.error) {
         // Handle error messages
         console.error('Error from server:', data.error);
+        analytics?.capture('host_server_error', { streamID, hostSessionId, error: data.error });
       } else {
         console.log('Unknown message type:', data);
+        analytics?.capture('host_unknown_message', { payload: data, streamID, hostSessionId });
       }
     };
 
     socket.onerror = (error) => {
       console.error('WebSocket error:', error);
+      analytics?.capture('host_socket_error', {
+        hostSessionId,
+        streamID,
+        errorMessage: error.message || 'unknown',
+        errorType: error.type,
+      });
     };
 
     socket.onclose = () => {
@@ -158,6 +234,7 @@ async function startTranscription() {
       isTranscribing = false;
       startButton.disabled = false;
       stopButton.disabled = true;
+      analytics?.capture('host_socket_closed', { streamID, hostSessionId });
     };
   } else {
     // If WebSocket is already open, just send the start message
@@ -175,6 +252,11 @@ function sendStartMessage() {
     message.streamID = streamID;
   }
   socket.send(JSON.stringify(message));
+  analytics?.capture('host_start_message_sent', {
+    hostSessionId,
+    streamID,
+    language: selectedLanguage,
+  });
 }
 
 function pauseTranscription() {
@@ -191,6 +273,12 @@ function pauseTranscription() {
     socket.send(JSON.stringify({ type: 'pause' }));
   }
 
+  analytics?.capture('host_session_paused', {
+    hostSessionId,
+    streamID,
+    elapsedMs: hostSessionStartTime ? Date.now() - hostSessionStartTime : null,
+  });
+
   // Stop the audio processing
   if (processor && processor.port) {
     processor.port.close();
@@ -203,7 +291,7 @@ function pauseTranscription() {
 
 
 
-function stopTranscription() {
+function stopTranscription(reason = 'manual') {
   releaseWakeLock();
   if (!isTranscribing) {
     console.log('Not currently transcribing');
@@ -223,6 +311,15 @@ function stopTranscription() {
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type: 'stop', streamID }));
   }
+
+  analytics?.capture('host_session_stopped', {
+    hostSessionId,
+    streamID,
+    reason,
+    durationMs: hostSessionStartTime ? Date.now() - hostSessionStartTime : null,
+    finalTranscriptCount,
+    totalFinalCharacters,
+  });
 
   // Close audio processing
   if (processor && processor.port) {
@@ -247,28 +344,44 @@ function stopTranscription() {
 
 
 async function initializeAudioStream() {
-  if (audioContext && audioContext.state === 'suspended') {
-    await audioContext.resume();
-  } else {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)({
-      sampleRate: 44100,
+  try {
+    if (audioContext && audioContext.state === 'suspended') {
+      await audioContext.resume();
+      analytics?.capture('audio_context_resumed', { hostSessionId });
+    } else {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)({
+        sampleRate: 44100,
+      });
+
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      input = audioContext.createMediaStreamSource(mediaStream);
+
+      processor = audioContext.createScriptProcessor(2048, 1, 1);
+      processor.onaudioprocess = (e) => {
+        const inputData = e.inputBuffer.getChannelData(0);
+        const inputData16 = downsampleBuffer(inputData, audioContext.sampleRate, 44100);
+        if (socket.readyState === WebSocket.OPEN) {
+          // Send the audio data as binary data
+          socket.send(inputData16);
+        }
+      };
+
+      input.connect(processor);
+      processor.connect(audioContext.destination);
+
+      analytics?.capture('audio_stream_initialized', {
+        hostSessionId,
+        streamID,
+        sampleRate: audioContext.sampleRate,
+      });
+    }
+  } catch (error) {
+    console.error('Failed to initialize audio stream', error);
+    analytics?.capture('audio_stream_init_failed', {
+      hostSessionId,
+      streamID,
+      errorMessage: error.message,
     });
-
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    input = audioContext.createMediaStreamSource(mediaStream);
-
-    processor = audioContext.createScriptProcessor(2048, 1, 1);
-    processor.onaudioprocess = (e) => {
-      const inputData = e.inputBuffer.getChannelData(0);
-      const inputData16 = downsampleBuffer(inputData, audioContext.sampleRate, 44100);
-      if (socket.readyState === WebSocket.OPEN) {
-        // Send the audio data as binary data
-        socket.send(inputData16);
-      }
-    };
-
-    input.connect(processor);
-    processor.connect(audioContext.destination);
   }
 }
 
@@ -319,6 +432,16 @@ function fadeIn(element) {
 
 
 function updateTranscription(transcript, isPartial) {
+  if (!firstTranscriptLogged && hostSessionStartTime) {
+    firstTranscriptLogged = true;
+    analytics?.capture('first_transcript_received', {
+      hostSessionId,
+      streamID,
+      isPartial,
+      latencyMs: Date.now() - hostSessionStartTime,
+    });
+  }
+
   if (isPartial) {
     const words = transcript.split(' ');
     if (!partialLine) {
@@ -359,6 +482,14 @@ function updateTranscription(transcript, isPartial) {
       line.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
     previousWords = [];
+    finalTranscriptCount += 1;
+    totalFinalCharacters += transcript.length;
+    analytics?.capture('transcript_finalized', {
+      hostSessionId,
+      streamID,
+      length: transcript.length,
+      finalTranscriptCount,
+    });
   }
 }
 
@@ -371,10 +502,20 @@ function toggleFullScreen() {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen();
     fullscreenButton.innerText = 'Exit Full Screen';
+    analytics?.capture('fullscreen_toggled', {
+      hostSessionId,
+      streamID,
+      isFullscreen: true,
+    });
   } else {
     if (document.exitFullscreen) {
       document.exitFullscreen();
       fullscreenButton.innerText = 'Enter Full Screen';
+      analytics?.capture('fullscreen_toggled', {
+        hostSessionId,
+        streamID,
+        isFullscreen: false,
+      });
     }
   }
 }

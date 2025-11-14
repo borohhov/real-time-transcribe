@@ -1,9 +1,22 @@
 // public/subscriber.js
-
 let socket;
 let streamID = null;
 
+const analytics = window.appAnalytics;
+const subscriberSessionId =
+  (typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID()) ||
+  `subscriber-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+analytics?.init('subscriber', { page: 'subscriber', subscriberSessionId });
+analytics?.capture('subscriber_ui_loaded', {
+  subscriberSessionId,
+  userAgent: navigator.userAgent,
+});
+analytics?.setContext({ subscriberSessionId });
+
 const transcriptionContainer = document.getElementById('transcription-container');
+let subscriberSessionStartTime = null;
+let subscriberFirstTranscriptLogged = false;
+let subscriberFinalTranscriptCount = 0;
 
 function startSubscription() {
   // Get the streamID from the URL parameters
@@ -12,16 +25,28 @@ function startSubscription() {
 
   if (!streamID) {
     alert('No streamID provided in the URL.');
+    analytics?.capture('subscriber_join_failed', {
+      subscriberSessionId,
+      reason: 'missing_stream_id',
+    });
     return;
   }
+
+  subscriberSessionStartTime = Date.now();
+  analytics?.setContext({ streamID });
+  analytics?.capture('subscriber_join_attempted', {
+    subscriberSessionId,
+    streamID,
+  });
 
   // Initialize WebSocket
   const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
   const wsHost = window.location.host;
-  const socket = new WebSocket(`${wsProtocol}${wsHost}`);
+  socket = new WebSocket(`${wsProtocol}${wsHost}`);
 
   socket.onopen = () => {
     console.log('WebSocket connection opened');
+    analytics?.capture('subscriber_socket_opened', { streamID, subscriberSessionId });
 
     // Send initial message to subscribe to a stream
     socket.send(JSON.stringify({ type: 'subscribe', streamID }));
@@ -35,35 +60,66 @@ function startSubscription() {
       updateTranscription(transcript, isPartial);
     } else if (data.type === 'end') {
       console.log('Stream has ended.');
-      stopSubscription();
+      analytics?.capture('subscriber_stream_end', { streamID, subscriberSessionId });
+      stopSubscription('stream_end');
     } else if (data.error) {
       console.error('Error from server:', data.error);
       alert(`Error: ${data.error}`);
-      stopSubscription();
+      analytics?.capture('subscriber_join_failed', {
+        streamID,
+        subscriberSessionId,
+        reason: data.error,
+      });
+      stopSubscription('server_error');
     } else {
       console.log('Unknown message type:', data);
+      analytics?.capture('subscriber_unknown_message', { streamID, subscriberSessionId, payload: data });
     }
   };
 
   socket.onerror = (error) => {
     console.error('WebSocket error:', error);
+    analytics?.capture('subscriber_socket_error', {
+      streamID,
+      subscriberSessionId,
+      errorMessage: error.message || 'unknown',
+      errorType: error.type,
+    });
   };
 
   socket.onclose = () => {
     console.log('WebSocket connection closed');
+    analytics?.capture('subscriber_socket_closed', { streamID, subscriberSessionId });
   };
 }
 
-function stopSubscription() {
+function stopSubscription(reason = 'manual') {
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.close();
   }
+  analytics?.capture('subscriber_session_stopped', {
+    streamID,
+    subscriberSessionId,
+    reason,
+    durationMs: subscriberSessionStartTime ? Date.now() - subscriberSessionStartTime : null,
+    finalTranscriptCount: subscriberFinalTranscriptCount,
+  });
 }
 
 let partialLine = null;
 let previousWords = [];
 
 function updateTranscription(transcript, isPartial) {
+  if (!subscriberFirstTranscriptLogged && subscriberSessionStartTime) {
+    subscriberFirstTranscriptLogged = true;
+    analytics?.capture('subscriber_first_transcript_received', {
+      streamID,
+      subscriberSessionId,
+      latencyMs: Date.now() - subscriberSessionStartTime,
+      isPartial,
+    });
+  }
+
   if (isPartial) {
     const words = transcript.split(' ');
     if (!partialLine) {
@@ -126,6 +182,13 @@ function updateTranscription(transcript, isPartial) {
 
     // Reset previousWords
     previousWords = [];
+    subscriberFinalTranscriptCount += 1;
+    analytics?.capture('subscriber_transcript_finalized', {
+      streamID,
+      subscriberSessionId,
+      finalTranscriptCount: subscriberFinalTranscriptCount,
+      length: transcript.length,
+    });
   }
 }
 

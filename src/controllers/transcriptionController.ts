@@ -9,6 +9,15 @@ import { CustomWebSocket } from '../common/customWebSocket';
 import { TranslationService } from '../services/translation/translationService';
 import { SourceLangCode, TargetLangCode } from '../common/supportedLanguageCodes';
 import { TranscriptItem, TranslationContext } from '../common/transcriptionMessage';
+import { captureServerEvent, captureServerError } from '../services/analytics/posthogClient';
+
+const emitTranscriptionEvent = (
+  event: string,
+  streamID: string,
+  properties: Record<string, unknown> = {}
+) => {
+  captureServerEvent(event, streamID, { streamID, ...properties });
+};
 
 export const startTranscription = (
   ws: CustomWebSocket,
@@ -78,19 +87,27 @@ export const startTranscription = (
     }
   };
 
+  emitTranscriptionEvent('transcription_pipeline_started', streamID, {
+    targetLanguage: language ?? 'en-US',
+  });
+
   // Start the transcription handling
   handleTranscription(
     getAudioStream,
     shouldContinueTranscribing,
     sendTranscript,
     language,
-    abortSignal
+    abortSignal,
+    streamID
   )
     .catch((err) => {
       if ((err as Error).name === 'AbortError') {
         console.log('Transcription aborted');
       } else {
         console.error('Transcribe client error:', err);
+        captureServerError('transcribe_client_error', err, streamID, {
+          targetLanguage: language ?? 'en-US',
+        });
       }
     })
     .finally(() => {
@@ -99,6 +116,9 @@ export const startTranscription = (
       stream.audioStream?.end();
       stream.audioStream?.on('finish', () => {
         stream.audioStream = null;
+      });
+      emitTranscriptionEvent('transcription_pipeline_finished', streamID, {
+        targetLanguage: language ?? 'en-US',
       });
     });
 };
@@ -109,7 +129,8 @@ async function handleTranscription(
   shouldContinueTranscribing: () => boolean,
   sendTranscript: (transcript: string, isPartial: boolean) => void,
   language: TargetLangCode | undefined,
-  abortSignal: AbortSignal
+  abortSignal: AbortSignal,
+  streamID: string
 ) {
   const sourceLanguageCode: SourceLangCode = 'en-US';
   const targetLanguageCode: TargetLangCode = language ?? 'en-US';
@@ -151,7 +172,8 @@ async function handleTranscription(
         targetLanguageCode,
         translationService,
         sendTranscript,
-        translationContext
+        translationContext,
+        streamID
       );
     }
 
@@ -167,7 +189,8 @@ async function processTranscriptEvent(
   targetLanguageCode: TargetLangCode,
   translationService: TranslationService,
   sendTranscript: (transcript: string, isPartial: boolean) => void,
-  translationContext: TranslationContext
+  translationContext: TranslationContext,
+  streamID: string
 ) {
   if (event.TranscriptEvent?.Transcript?.Results?.length) {
     const result = event.TranscriptEvent.Transcript.Results[0];
@@ -202,15 +225,35 @@ async function processTranscriptEvent(
       const shouldTranslate = checkShouldTranslate(translationContext.untranslatedBuffer);
 
       if (shouldTranslate || !result.IsPartial) {
-        const translatedText = await translationService.translate(
-          translationContext.untranslatedBuffer,
+        const textToTranslate = translationContext.untranslatedBuffer;
+        emitTranscriptionEvent('translation_requested', streamID, {
+          characters: textToTranslate.length,
           sourceLanguageCode,
-          targetLanguageCode
-        );
+          targetLanguageCode,
+        });
 
-        sendTranscript(translatedText, false);
-        console.log(translationContext.untranslatedBuffer)
-        translationContext.untranslatedBuffer = '';
+        try {
+          const translatedText = await translationService.translate(
+            textToTranslate,
+            sourceLanguageCode,
+            targetLanguageCode
+          );
+
+          emitTranscriptionEvent('translation_completed', streamID, {
+            characters: textToTranslate.length,
+            sourceLanguageCode,
+            targetLanguageCode,
+          });
+          sendTranscript(translatedText, false);
+          translationContext.untranslatedBuffer = '';
+        } catch (error) {
+          captureServerError('translation_failed', error, streamID, {
+            characters: textToTranslate.length,
+            sourceLanguageCode,
+            targetLanguageCode,
+          });
+          throw error;
+        }
       }
     }
   }
