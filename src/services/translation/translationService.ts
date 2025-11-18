@@ -1,4 +1,4 @@
-import { TranslationProvider } from "./translationProvider";
+import { TranslationMetadata, TranslationProvider } from "./translationProvider";
 import { OpenAIProvider } from "./openai/openaiProvider";
 
 export class TranslationService {
@@ -8,7 +8,13 @@ export class TranslationService {
     this.provider = new OpenAIProvider();
   }
 
-  async translate(text: string, sourceLang: string, targetLang: string, context?: string): Promise<string> {
-    return this.provider.translate(text, sourceLang, targetLang, context);
+  async translate(
+    text: string,
+    sourceLang: string,
+    targetLang: string,
+    context?: string,
+    metadata?: TranslationMetadata
+  ): Promise<string> {
+    return this.provider.translate(text, sourceLang, targetLang, context, metadata);
   }
 }

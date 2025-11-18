@@ -36,8 +36,7 @@ https://medium.com/@borohhov/genai-built-my-real-time-subtitles-app-faster-than-
 
 ## Analytics & Error Tracking
 
-
-If the PostHog keys are omitted, the analytics helpers are no-ops, so the application continues to run without emitting telemetry.
+The backend proxies PostHog for the browser (`/posthog`) and emits structured telemetry for most stream lifecycle events. Each OpenAI translation now also generates a PostHog AI analytics event (`$ai_generation`) that includes the request/response messages, token counts, latency, and estimated USD cost so you can track LLM spend in PostHog. Remove the PostHog environment variables if you want to disable all analytics entirely—the helpers no-op when the keys are missing.
 
 ## Usage
 
@@ -47,4 +46,3 @@ npm run dev
 ```
 
 If all is well, you should be able to open your browser and navigate to `http://localhost:8080`.
-

@@ -236,7 +236,9 @@ async function processTranscriptEvent(
           const translatedText = await translationService.translate(
             textToTranslate,
             sourceLanguageCode,
-            targetLanguageCode
+            targetLanguageCode,
+            undefined,
+            { streamID, traceID: streamID, sessionID: streamID }
           );
 
           emitTranscriptionEvent('translation_completed', streamID, {
